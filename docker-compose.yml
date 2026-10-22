@@ -1,0 +1,191 @@
+services:
+
+  # 1. Reverse Proxy & SSL Termination (Port 80/443)
+  task_proxy:
+    container_name: task_proxy
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+    depends_on:
+      - task_frontend
+      - task_backend
+    networks:
+      - task_network
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+
+  # 2. Frontend User Interface
+  task_frontend:
+    container_name: task_frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    networks:
+      - task_network
+
+  # 3. Backend RESTful API & Metrics
+  task_backend:
+    container_name: task_backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      PORT: 5000
+      DB_HOST: task_mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-task_user}
+      DB_PASSWORD: ${DB_PASSWORD:-task_password}
+      DB_NAME: ${DB_NAME:-task_tracker_db}
+      JWT_SECRET: ${JWT_SECRET:-tasktracker_super_secret_jwt_key_2026}
+    depends_on:
+      task_mysql:
+        condition: service_healthy
+    networks:
+      - task_network
+
+  # 4. MySQL Database 8.0
+  task_mysql:
+    container_name: task_mysql
+    image: mysql:8.0
+    restart: always
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-task_tracker_db}
+      MYSQL_USER: ${DB_USER:-task_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-task_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - task_network
+
+  # 5. phpMyAdmin Database GUI
+  task_phpmyadmin:
+    container_name: task_phpmyadmin
+    image: phpmyadmin:latest
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: task_mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    depends_on:
+      - task_mysql
+    networks:
+      - task_network
+
+  # 6. Prometheus Monitoring
+  task_prometheus:
+    container_name: task_prometheus
+    image: prom/prometheus:latest
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - task_network
+
+  # 7. cAdvisor - Container Metrics
+  task_cadvisor:
+    container_name: task_cadvisor
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: always
+    ports:
+      - "8085:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - task_network
+
+  # 8. Grafana Dashboard & Visualization
+  task_grafana:
+    container_name: task_grafana
+    image: grafana/grafana:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - task_prometheus
+      - task_loki
+    networks:
+      - task_network
+
+  # 9. Loki - Centralized Logging System
+  task_loki:
+    container_name: task_loki
+    image: grafana/loki:2.9.4
+    restart: always
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - task_network
+
+  # 10. Promtail - Docker Logs Collector
+  task_promtail:
+    container_name: task_promtail
+    image: grafana/promtail:2.9.4
+    restart: always
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - task_loki
+    networks:
+      - task_network
+
+networks:
+  task_network:
+    name: task_network
+    driver: bridge
+
+volumes:
+  mysql_data:
+    name: task_mysql_data
+  prometheus_data:
+    name: task_prometheus_data
+  grafana_data:
+    name: task_grafana_data
+  loki_data:
+    name: task_loki_data

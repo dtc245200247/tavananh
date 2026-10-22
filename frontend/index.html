@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Tracker Pro - Hệ Thống Quản Lý Công Việc & Tiến Độ</title>
+  <meta name="description" content="Hệ thống quản lý công việc và tiến độ dự án hiện đại, tích hợp Docker, Nginx Reverse Proxy, Prometheus và Grafana.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- AUTHENTICATION VIEW -->
+  <div id="auth-view" class="auth-page">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">⚡</div>
+        <h2>Task Tracker Pro</h2>
+        <p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.25rem;">Hệ thống phân công và theo dõi tiến độ</p>
+      </div>
+
+      <div class="auth-tabs">
+        <div id="tab-login-btn" class="auth-tab active" onclick="switchAuthTab('login')">Đăng nhập</div>
+        <div id="tab-register-btn" class="auth-tab" onclick="switchAuthTab('register')">Đăng ký</div>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="login-username">Tên đăng nhập hoặc Email</label>
+          <input type="text" id="login-username" class="form-control" placeholder="admin hoặc email..." required value="admin">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="login-password">Mật khẩu</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required value="admin123">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">
+          Đăng nhập ngay
+        </button>
+
+        <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.8125rem; color: var(--text-muted); text-align: center;">
+          <div style="margin-bottom: 0.5rem; font-weight: 600;">Tài khoản thử nghiệm sẵn có:</div>
+          <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; margin: 0.2rem;" onclick="quickFill('admin', 'admin123')">🔑 Admin (admin / admin123)</button>
+          <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; margin: 0.2rem;" onclick="quickFill('nguyenvana', 'admin123')">👤 Member (nguyenvana / admin123)</button>
+        </div>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" onsubmit="handleRegister(event)" style="display: none;">
+        <div class="form-group" style="margin-bottom: 0.875rem;">
+          <label for="reg-fullname">Họ và tên</label>
+          <input type="text" id="reg-fullname" class="form-control" placeholder="Nguyễn Văn A" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.875rem;">
+          <label for="reg-username">Tên đăng nhập</label>
+          <input type="text" id="reg-username" class="form-control" placeholder="username..." required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.875rem;">
+          <label for="reg-email">Địa chỉ Email</label>
+          <input type="email" id="reg-email" class="form-control" placeholder="user@example.com" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="reg-password">Mật khẩu (ít nhất 6 ký tự)</label>
+          <input type="password" id="reg-password" class="form-control" placeholder="••••••••" minlength="6" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">
+          Tạo tài khoản mới
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div id="main-app" class="app-container" style="display: none;">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sidebar-header">
+        <div class="logo-badge">⚡</div>
+        <div class="logo-text">
+          <h2>Task Tracker</h2>
+          <span>Production v1.0</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#kanban" id="nav-kanban" class="nav-item active" onclick="switchView('kanban')">
+          <span class="icon">📋</span>
+          <span>Bảng công việc (Kanban)</span>
+        </a>
+        <a href="#members" id="nav-members" class="nav-item" onclick="switchView('members')">
+          <span class="icon">👥</span>
+          <span>Quản lý thành viên</span>
+        </a>
+        <a href="http://localhost:3000" target="_blank" class="nav-item">
+          <span class="icon">📈</span>
+          <span>Grafana Dashboard ↗</span>
+        </a>
+        <a href="http://localhost:8080" target="_blank" class="nav-item">
+          <span class="icon">🗄️</span>
+          <span>phpMyAdmin ↗</span>
+        </a>
+        <a href="/metrics" target="_blank" class="nav-item">
+          <span class="icon">📊</span>
+          <span>Prometheus Metrics ↗</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <img id="sidebar-user-avatar" src="" alt="Avatar" class="user-avatar">
+          <div class="user-info">
+            <span id="sidebar-user-name" class="user-name">Đang tải...</span>
+            <span id="sidebar-user-role" class="user-role">Member</span>
+          </div>
+        </div>
+        <button class="btn-icon" title="Đăng xuất" onclick="logout()">
+          🚪
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="page-title">
+          <h1 id="page-title-text">Bảng quản lý công việc (Kanban Board)</h1>
+          <p id="page-subtitle-text">Kéo thả để cập nhật trạng thái tiến độ các công việc</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn btn-secondary" onclick="refreshCurrentView()" title="Làm mới dữ liệu">
+            🔄 Làm mới
+          </button>
+          <button class="btn btn-primary" onclick="openCreateTaskModal()">
+            ➕ Tạo công việc mới
+          </button>
+        </div>
+      </div>
+
+      <!-- KANBAN VIEW -->
+      <div id="view-kanban">
+        <!-- Stats Summary Bar -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">📊</div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-label">Tổng số công việc</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8;">📝</div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-todo">0</div>
+              <div class="stat-label">Cần thực hiện</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9;">⚡</div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-in_progress">0</div>
+              <div class="stat-label">Đang triển khai</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">✅</div>
+            <div class="stat-info">
+              <div class="stat-value" id="stat-done">0</div>
+              <div class="stat-label">Đã hoàn thành</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="filter-bar">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="task-search-input" placeholder="Tìm kiếm theo tiêu đề..." oninput="handleTaskSearch()">
+          </div>
+
+          <div class="filter-group">
+            <select id="filter-priority" class="custom-select" onchange="loadTasks()">
+              <option value="">Tất cả mức độ ưu tiên</option>
+              <option value="urgent">🔴 Khẩn cấp (Urgent)</option>
+              <option value="high">🟠 Cao (High)</option>
+              <option value="medium">🔵 Trung bình (Medium)</option>
+              <option value="low">🟢 Thấp (Low)</option>
+            </select>
+
+            <select id="filter-assignee" class="custom-select" onchange="loadTasks()">
+              <option value="">Tất cả người thực hiện</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Kanban Board Columns -->
+        <div class="kanban-board">
+          <!-- Column 1: TODO -->
+          <div class="kanban-column" id="col-todo" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="handleDrop(event, 'todo')">
+            <div class="column-header">
+              <div class="column-title-group">
+                <div class="column-dot" style="background: var(--status-todo);"></div>
+                <span class="column-title">Cần làm</span>
+              </div>
+              <span class="column-count" id="count-todo">0</span>
+            </div>
+            <div class="column-tasks" id="tasks-todo"></div>
+          </div>
+
+          <!-- Column 2: IN PROGRESS -->
+          <div class="kanban-column" id="col-in_progress" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="handleDrop(event, 'in_progress')">
+            <div class="column-header">
+              <div class="column-title-group">
+                <div class="column-dot" style="background: var(--status-in_progress);"></div>
+                <span class="column-title">Đang làm</span>
+              </div>
+              <span class="column-count" id="count-in_progress">0</span>
+            </div>
+            <div class="column-tasks" id="tasks-in_progress"></div>
+          </div>
+
+          <!-- Column 3: REVIEW -->
+          <div class="kanban-column" id="col-review" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="handleDrop(event, 'review')">
+            <div class="column-header">
+              <div class="column-title-group">
+                <div class="column-dot" style="background: var(--status-review);"></div>
+                <span class="column-title">Đang xét duyệt</span>
+              </div>
+              <span class="column-count" id="count-review">0</span>
+            </div>
+            <div class="column-tasks" id="tasks-review"></div>
+          </div>
+
+          <!-- Column 4: DONE -->
+          <div class="kanban-column" id="col-done" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="handleDrop(event, 'done')">
+            <div class="column-header">
+              <div class="column-title-group">
+                <div class="column-dot" style="background: var(--status-done);"></div>
+                <span class="column-title">Hoàn thành</span>
+              </div>
+              <span class="column-count" id="count-done">0</span>
+            </div>
+            <div class="column-tasks" id="tasks-done"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEMBERS VIEW -->
+      <div id="view-members" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <p style="color: var(--text-secondary);">Danh sách thành viên trong dự án và vai trò phân quyền.</p>
+          <button id="btn-add-member" class="btn btn-primary" onclick="openAddMemberModal()">
+            ➕ Thêm thành viên
+          </button>
+        </div>
+
+        <div class="table-card">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Thành viên</th>
+                <th>Tên người dùng</th>
+                <th>Email</th>
+                <th>Vai trò</th>
+                <th>Số việc phụ trách</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="members-table-body">
+              <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted);">Đang tải dữ liệu thành viên...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- TASK MODAL (Create & Edit) -->
+  <div id="task-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="task-modal-title">Khởi tạo công việc mới</h3>
+        <button class="btn-icon" onclick="closeTaskModal()">✕</button>
+      </div>
+      <form id="task-form" onsubmit="handleSaveTask(event)">
+        <input type="hidden" id="task-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="task-title-input">Tiêu đề công việc <span style="color: var(--accent-rose);">*</span></label>
+            <input type="text" id="task-title-input" class="form-control" placeholder="Ví dụ: Thiết kế cơ sở dữ liệu MySQL..." required>
+          </div>
+
+          <div class="form-group">
+            <label for="task-desc-input">Mô tả chi tiết</label>
+            <textarea id="task-desc-input" class="form-control" placeholder="Mô tả nội dung, yêu cầu cụ thể của công việc..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="task-status-select">Trạng thái</label>
+              <select id="task-status-select" class="form-control custom-select">
+                <option value="todo">📝 Cần làm</option>
+                <option value="in_progress">⚡ Đang làm</option>
+                <option value="review">🔍 Đang xét duyệt</option>
+                <option value="done">✅ Hoàn thành</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="task-priority-select">Độ ưu tiên</label>
+              <select id="task-priority-select" class="form-control custom-select">
+                <option value="low">🟢 Thấp (Low)</option>
+                <option value="medium" selected>🔵 Trung bình (Medium)</option>
+                <option value="high">🟠 Cao (High)</option>
+                <option value="urgent">🔴 Khẩn cấp (Urgent)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="task-assignee-select">Phân công cho</label>
+              <select id="task-assignee-select" class="form-control custom-select">
+                <option value="">-- Chưa gán người thực hiện --</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="task-due-date-input">Hạn chót (Due date)</label>
+              <input type="date" id="task-due-date-input" class="form-control">
+            </div>
+          </div>
+
+          <!-- Comments section (when editing) -->
+          <div id="task-comments-wrapper" style="display: none; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <label style="font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; display: block;">Trao đổi & Bình luận</label>
+            <div id="comments-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 150px; overflow-y: auto; margin-bottom: 0.75rem;"></div>
+            <div style="display: flex; gap: 0.5rem;">
+              <input type="text" id="new-comment-input" class="form-control" placeholder="Viết bình luận...">
+              <button type="button" class="btn btn-secondary" onclick="addComment()">Gửi</button>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-delete-task" class="btn btn-danger" style="display: none; margin-right: auto;" onclick="deleteCurrentTask()">
+            🗑️ Xóa việc này
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="closeTaskModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu công việc</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD MEMBER MODAL -->
+  <div id="member-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Thêm thành viên mới</h3>
+        <button class="btn-icon" onclick="closeMemberModal()">✕</button>
+      </div>
+      <form id="member-form" onsubmit="handleCreateMember(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="mem-fullname">Họ và tên</label>
+            <input type="text" id="mem-fullname" class="form-control" placeholder="Trần Thị Bình" required>
+          </div>
+          <div class="form-group">
+            <label for="mem-username">Tên đăng nhập</label>
+            <input type="text" id="mem-username" class="form-control" placeholder="thib.tran" required>
+          </div>
+          <div class="form-group">
+            <label for="mem-email">Email</label>
+            <input type="email" id="mem-email" class="form-control" placeholder="thib.tran@example.com" required>
+          </div>
+          <div class="form-group">
+            <label for="mem-password">Mật khẩu ban đầu</label>
+            <input type="password" id="mem-password" class="form-control" placeholder="Tối thiểu 6 ký tự" minlength="6" required>
+          </div>
+          <div class="form-group">
+            <label for="mem-role">Vai trò</label>
+            <select id="mem-role" class="form-control custom-select">
+              <option value="member" selected>Thành viên (Member)</option>
+              <option value="admin">Quản trị viên (Admin)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeMemberModal()">Hủy</button>
+          <button type="submit" class="btn btn-primary">Thêm thành viên</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
