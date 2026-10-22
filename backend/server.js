@@ -68,9 +68,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
 
-// 404 Fallback
+// Serve frontend static files
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend')));
+
+// 404 Fallback for unhandled API or file routes
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: `Tài nguyên ${req.originalUrl} không tồn tại trên hệ thống.` });
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ success: false, message: `Tài nguyên ${req.originalUrl} không tồn tại trên hệ thống.` });
+  }
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 // Global Error Handler
